@@ -1,11 +1,3 @@
-/*****************************************************************************
- *   This example is controlling the LEDs using the joystick
- *
- *   Copyright(C) 2010, Embedded Artists AB
- *   All rights reserved.
- *
- ******************************************************************************/
-
 
 
 #include "lpc17xx_pinsel.h"
@@ -28,11 +20,29 @@ uint8_t generateRandomDirection(){
 	}
 	return JOYSTICK_CENTER;
 }
+
+
+double calculateAverageScore(double* arr){
+	int avg=0;
+	for(int i=0; i<5; i++){
+		avg+=arr[i];
+	}
+	return avg/5;
+}
+
 void beginning(){
     oled_clearScreen(OLED_COLOR_BLACK);
-    oled_putString(10, 10, (uint8_t *)"Move joystick to the right to start a new game or <not implemented>.", OLED_COLOR_WHITE, OLED_COLOR_BLACK);
-
+    oled_putString(10, 10, (uint8_t *)"Move joystick to the right", OLED_COLOR_WHITE, OLED_COLOR_BLACK);
+    oled_putString(10, 20, (uint8_t *)"to start a new game or...", OLED_COLOR_WHITE, OLED_COLOR_BLACK);
+    while(1){
+    	uint8_t joy = joystick_read();
+    	if (joy == JOYSTICK_UP){
+    		break;
+    	}
+    }
+    oled_clearScreen(OLED_COLOR_BLACK);
 }
+
 
 
 double singleCycle(){
@@ -48,7 +58,7 @@ double singleCycle(){
     	}
     }
 
-    double reactionTime = (double)(endTime - startTime); //cos tutaj jest o podzieleniu przez CLOCKS_PER_SEC ALE NIE WIEM, ZOBACZYMY
+    double reactionTime = (double)(endTime - startTime) / CLOCKS_PER_SEC; //cos tutaj jest o podzieleniu przez CLOCKS_PER_SEC ALE NIE WIEM, ZOBACZYMY
     char displayInformation[32];
     sprintf(displayInformation, "Time: %.3f s", reactionTime);
     oled_putString(10, 10, (uint8_t *)displayInformation, OLED_COLOR_WHITE, OLED_COLOR_BLACK);
@@ -67,9 +77,12 @@ int main (void) {
     	scores[i]=cycleScore;
         for (volatile int j = 0; j < 1000000; j++); //SEKUNDA NA ODETCHNIECIE
     }
-
+    double averageScore = calculateAverageScore(scores);
     oled_clearScreen(OLED_COLOR_BLACK);
-    oled_putString(10, 10, (uint8_t *)"Koniec gry!", OLED_COLOR_WHITE, OLED_COLOR_BLACK);
-
+    oled_putString(0, 0, (uint8_t *)"Game over", OLED_COLOR_WHITE, OLED_COLOR_BLACK);
+    oled_putString(0, 10, (uint8_t *)"avg score:", OLED_COLOR_WHITE, OLED_COLOR_BLACK);
+    char avgScoreText[32];
+    sprintf(avgScoreText, "%.3f s", averageScore);
+    oled_putString(0, 20, (uint8_t *)avgScoreText, OLED_COLOR_WHITE, OLED_COLOR_BLACK);
     while(1);
 }
