@@ -1,0 +1,11 @@
+/Debug/
+/Release/
+/.settings/
+/.project
+/.cproject
+*.launch
+*.log
+*.bak
+*.tmp
+Thumbs.db
+desktop.ini
