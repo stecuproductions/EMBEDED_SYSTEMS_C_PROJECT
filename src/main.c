@@ -49,6 +49,7 @@ double singleCycle(){
     oled_clearScreen(OLED_COLOR_BLACK);
     uint8_t rolledDir = generateRandomDirection();
     clock_t startTime = clock();
+    oled_putString(10, 10, (uint8_t *)rolledDir, OLED_COLOR_WHITE, OLED_COLOR_BLACK);
     clock_t endTime;
     while(1){
     	uint8_t userDir = joystick_read();
@@ -60,6 +61,7 @@ double singleCycle(){
 
     double reactionTime = (double)(endTime - startTime) / CLOCKS_PER_SEC; //cos tutaj jest o podzieleniu przez CLOCKS_PER_SEC ALE NIE WIEM, ZOBACZYMY
     char displayInformation[32];
+    oled_clearScreen(OLED_COLOR_BLACK);
     sprintf(displayInformation, "Time: %.3f s", reactionTime);
     oled_putString(10, 10, (uint8_t *)displayInformation, OLED_COLOR_WHITE, OLED_COLOR_BLACK);
     return reactionTime;
