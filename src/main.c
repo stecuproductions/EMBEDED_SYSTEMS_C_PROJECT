@@ -103,23 +103,37 @@ double calculateAverageScore(double *arr, int size) {
 }
 
 // music
-
+//Peroid of each note T=1/f. Np: dzwiek A = 440Hz czyli 1/440 = 0.00272727273 czyli w mikrosekundach 2272us
 static uint32_t notes[] = {
-    2272, 2024, 3816, 3401, 3030, 2865, 2551,
-    1136, 1012, 1912, 1703, 1517, 1432, 1275,
+        2272, // A - 440 Hz
+        2024, // B - 494 Hz
+        3816, // C - 262 Hz
+        3401, // D - 294 Hz
+        3030, // E - 330 Hz
+        2865, // F - 349 Hz
+        2551, // G - 392 Hz
+        1136, // a - 880 Hz
+        1012, // b - 988 Hz
+        1912, // c - 523 Hz
+        1703, // d - 587 Hz
+        1517, // e - 659 Hz
+        1432, // f - 698 Hz
+        1275, // g - 784 Hz
 };
-
 //static const char *song = "D4,";
+//pioseneczka D - 4s dlugosc polokresu
 static const char *song = "D4,B4,B4,A4,A4,G4,E4,D4.D2,E4,E4,A4,F4,D8.D4,d4,d4,c4,c4,B4,G4,E4.E2,F4,F4,A4,A4,G8,";
+
+
 
 static void playNote(uint32_t note, uint32_t durationMs) {
     uint32_t t = 0;
     if (note > 0) {
-        while (t < (durationMs * 1000)) {
-            NOTE_PIN_HIGH();
-            Timer0_us_Wait(note / 2);
-            NOTE_PIN_LOW();
-            Timer0_us_Wait(note / 2);
+        while (t < (durationMs * 1000)) { //stan on oof * duration
+            NOTE_PIN_HIGH(); //buzzer zaczyna grac
+            Timer0_us_Wait(note / 2); //polokres
+            NOTE_PIN_LOW(); //
+            Timer0_us_Wait(note / 2); //polokres
             t += note;
         }
     } else {
@@ -128,14 +142,14 @@ static void playNote(uint32_t note, uint32_t durationMs) {
 }
 
 static uint32_t getNote(uint8_t ch) {
-    if (ch >= 'A' && ch <= 'G') return notes[ch - 'A'];
-    if (ch >= 'a' && ch <= 'g') return notes[ch - 'a' + 7];
+    if (ch >= 'A' && ch <= 'G') return notes[ch - 'A']; // C - A =>  67  - 65 = 2
+    if (ch >= 'a' && ch <= 'g') return notes[ch - 'a' + 7]; //c - a + 7=> 99-97 + 7 = 9
     return 0;
 }
 
 static uint32_t getDuration(uint8_t ch) {
     if (ch < '0' || ch > '9') return 400;
-    return (ch - '0') * 200;
+    return (ch - '0') * 200; //np: 4 to '4' - '0' = 52 - 48 = 4 * 200 (peeeelny okres)
 }
 
 static uint32_t getPause(uint8_t ch) {
