@@ -1,20 +1,20 @@
 #include "lpc17xx_pinsel.h"
-#include "lpc17xx_i2c.h" //magistrala komunikacyjna - pozwala rozmawiac z wyswietlaczem
-#include "lpc17xx_ssp.h" //modul do komunikacji z urzadzeniami na mikrokontrolerze
-#include "lpc17xx_adc.h" //analog to digital converter - do joysticka
-#include "lpc17xx_timer.h"  //Funkcje timera - bedziemy ich uzywac
+#include "lpc17xx_i2c.h"
+#include "lpc17xx_ssp.h"
+#include "lpc17xx_adc.h"
+#include "lpc17xx_timer.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <time.h>
-#include "joystick.h" //joystick (szok)
-#include "oled.h" //wyswietlacz
-#include "music.h"
+#include "joystick.h"
+#include "oled.h"
 
 #define NOTE_PIN_HIGH() GPIO_SetValue(0, 1<<26);
-#define NOTE_PIN_LOW()  GPIO_ClearValue(0, 1<<26);
-//inits
+#define NOTE_PIN_LOW() GPIO_ClearValue(0, 1<<26);
 
-void init_timer(void){
+// inits
+
+void init_timer(void) {
     TIM_TIMERCFG_Type timerConfig;
     timerConfig.PrescaleOption = TIM_PRESCALE_USVAL;
     timerConfig.PrescaleValue = 1;
@@ -23,10 +23,9 @@ void init_timer(void){
     TIM_Cmd(LPC_TIM0, ENABLE);
 }
 
-void init_i2c(void){
+void init_i2c(void) {
     PINSEL_CFG_Type PinCfg;
 
-    /* Configure pins for I2C0 */
     PinCfg.Funcnum = 1;
     PinCfg.OpenDrain = 0;
     PinCfg.Pinmode = 0;
@@ -37,182 +36,216 @@ void init_i2c(void){
     PinCfg.Pinnum = 28;
     PINSEL_ConfigPin(&PinCfg);
 
-    /* Initialize I2C peripheral */
     I2C_Init(LPC_I2C0, 100000);
     I2C_Cmd(LPC_I2C0, ENABLE);
 }
-static void init_adc(void)
-{
-	PINSEL_CFG_Type PinCfg;
 
-	/*
-	 * Init ADC pin connect
-	 * AD0.0 on P0.23
-	 */
-	PinCfg.Funcnum = 1;
-	PinCfg.OpenDrain = 0;
-	PinCfg.Pinmode = 0;
-	PinCfg.Pinnum = 23;
-	PinCfg.Portnum = 0;
-	PINSEL_ConfigPin(&PinCfg);
+static void init_adc(void) {
+    PINSEL_CFG_Type PinCfg;
 
-	/* Configuration for ADC :
-	 * 	Frequency at 0.2Mhz
-	 *  ADC channel 0, no Interrupt
-	 */
-	ADC_Init(LPC_ADC, 200000);
-	ADC_IntConfig(LPC_ADC,ADC_CHANNEL_0,DISABLE);
-	ADC_ChannelCmd(LPC_ADC,ADC_CHANNEL_0,ENABLE);
+    PinCfg.Funcnum = 1;
+    PinCfg.OpenDrain = 0;
+    PinCfg.Pinmode = 0;
+    PinCfg.Pinnum = 23;
+    PinCfg.Portnum = 0;
+    PINSEL_ConfigPin(&PinCfg);
 
+    ADC_Init(LPC_ADC, 200000);
+    ADC_IntConfig(LPC_ADC, ADC_CHANNEL_0, DISABLE);
+    ADC_ChannelCmd(LPC_ADC, ADC_CHANNEL_0, ENABLE);
 }
 
-static void init_ssp(void)
-{
-	SSP_CFG_Type SSP_ConfigStruct;
-	PINSEL_CFG_Type PinCfg;
+static void init_ssp(void) {
+    SSP_CFG_Type SSP_ConfigStruct;
+    PINSEL_CFG_Type PinCfg;
 
-	/*
-	 * Initialize SPI pin connect
-	 * P0.7 - SCK;
-	 * P0.8 - MISO
-	 * P0.9 - MOSI
-	 * P2.2 - SSEL - used as GPIO
-	 */
-	PinCfg.Funcnum = 2;
-	PinCfg.OpenDrain = 0;
-	PinCfg.Pinmode = 0;
-	PinCfg.Portnum = 0;
-	PinCfg.Pinnum = 7;
-	PINSEL_ConfigPin(&PinCfg);
-	PinCfg.Pinnum = 8;
-	PINSEL_ConfigPin(&PinCfg);
-	PinCfg.Pinnum = 9;
-	PINSEL_ConfigPin(&PinCfg);
-	PinCfg.Funcnum = 0;
-	PinCfg.Portnum = 2;
-	PinCfg.Pinnum = 2;
-	PINSEL_ConfigPin(&PinCfg);
+    PinCfg.Funcnum = 2;
+    PinCfg.OpenDrain = 0;
+    PinCfg.Pinmode = 0;
+    PinCfg.Portnum = 0;
+    PinCfg.Pinnum = 7;
+    PINSEL_ConfigPin(&PinCfg);
+    PinCfg.Pinnum = 8;
+    PINSEL_ConfigPin(&PinCfg);
+    PinCfg.Pinnum = 9;
+    PINSEL_ConfigPin(&PinCfg);
+    PinCfg.Funcnum = 0;
+    PinCfg.Portnum = 2;
+    PinCfg.Pinnum = 2;
+    PINSEL_ConfigPin(&PinCfg);
 
-	SSP_ConfigStructInit(&SSP_ConfigStruct);
-
-	// Initialize SSP peripheral with parameter given in structure above
-	SSP_Init(LPC_SSP1, &SSP_ConfigStruct);
-
-	// Enable SSP peripheral
-	SSP_Cmd(LPC_SSP1, ENABLE);
-
+    SSP_ConfigStructInit(&SSP_ConfigStruct);
+    SSP_Init(LPC_SSP1, &SSP_ConfigStruct);
+    SSP_Cmd(LPC_SSP1, ENABLE);
 }
 
-//calculation functions
+// calculation functions
 
-const char* dirToString(uint8_t dir){
+const char* dirToString(uint8_t dir) {
     switch (dir) {
-        case JOYSTICK_UP:    return "UP";
+        case JOYSTICK_UP: return "UP";
         case JOYSTICK_RIGHT: return "RIGHT";
-        case JOYSTICK_DOWN:  return "DOWN";
-        case JOYSTICK_LEFT:  return "LEFT";
-        default:             return "CENTER";
+        case JOYSTICK_DOWN: return "DOWN";
+        case JOYSTICK_LEFT: return "LEFT";
+        default: return "CENTER";
     }
 }
 
-uint8_t generateRandomDirection(void){
+uint8_t generateRandomDirection(void) {
     int roll = rand() % 4;
-    return (uint8_t[]){JOYSTICK_UP, JOYSTICK_RIGHT,
-                       JOYSTICK_DOWN, JOYSTICK_LEFT}[roll];
+    return (uint8_t[]){JOYSTICK_UP, JOYSTICK_RIGHT, JOYSTICK_DOWN, JOYSTICK_LEFT}[roll];
 }
 
-double calculateAverageScore(double *arr) {
+double calculateAverageScore(double *arr, int size) {
     double sum = 0;
     for (int i = 0; i < 5; ++i) sum += arr[i];
-    return sum / 5;
+    return sum / size;
+}
+
+// music
+
+static uint32_t notes[] = {
+    2272, 2024, 3816, 3401, 3030, 2865, 2551,
+    1136, 1012, 1912, 1703, 1517, 1432, 1275,
+};
+
+//static const char *song = "D4,";
+static const char *song = "D4,B4,B4,A4,A4,G4,E4,D4.D2,E4,E4,A4,F4,D8.D4,d4,d4,c4,c4,B4,G4,E4.E2,F4,F4,A4,A4,G8,";
+
+static void playNote(uint32_t note, uint32_t durationMs) {
+    uint32_t t = 0;
+    if (note > 0) {
+        while (t < (durationMs * 1000)) {
+            NOTE_PIN_HIGH();
+            Timer0_us_Wait(note / 2);
+            NOTE_PIN_LOW();
+            Timer0_us_Wait(note / 2);
+            t += note;
+        }
+    } else {
+        Timer0_Wait(durationMs);
+    }
+}
+
+static uint32_t getNote(uint8_t ch) {
+    if (ch >= 'A' && ch <= 'G') return notes[ch - 'A'];
+    if (ch >= 'a' && ch <= 'g') return notes[ch - 'a' + 7];
+    return 0;
+}
+
+static uint32_t getDuration(uint8_t ch) {
+    if (ch < '0' || ch > '9') return 400;
+    return (ch - '0') * 200;
+}
+
+static uint32_t getPause(uint8_t ch) {
+    switch (ch) {
+        case '+': return 0;
+        case ',': return 5;
+        case '.': return 20;
+        case '_': return 30;
+        default: return 5;
+    }
+}
+
+static void playSong(uint8_t *song) {
+    uint32_t note = 0, dur = 0, pause = 0;
+    while (*song != '\0') {
+        note = getNote(*song++);
+        if (*song == '\0') break;
+        dur = getDuration(*song++);
+        if (*song == '\0') break;
+        pause = getPause(*song++);
+        playNote(note, dur);
+        Timer0_Wait(pause);
+    }
 }
 
 
-
-
-//Screen display functions
-
-void beginning(void){
-    oled_clearScreen(OLED_COLOR_BLACK);
-    oled_putString(0, 0,  (uint8_t *)"Przesun joystick", OLED_COLOR_WHITE, OLED_COLOR_BLACK);
-    oled_putString(0, 10, (uint8_t *)"w PRAWO by zaczac", OLED_COLOR_WHITE, OLED_COLOR_BLACK);
-
-    while (joystick_read() != JOYSTICK_RIGHT) ;
-    oled_clearScreen(OLED_COLOR_BLACK);
-}
-
-double singleCycle(void) {
-    oled_clearScreen(OLED_COLOR_BLACK);
-
-    uint8_t rolledDir = generateRandomDirection();
-    oled_putString(10, 10, (uint8_t *)dirToString(rolledDir),
-                   OLED_COLOR_WHITE, OLED_COLOR_BLACK);
-
-    clock_t startTime = clock();
-
-    while (joystick_read()!=rolledDir) ;
-
-    clock_t endTime = clock();
-    double reactionTime = (double)(endTime - startTime) / CLOCKS_PER_SEC;
-
-    char buf[32];
-    oled_clearScreen(OLED_COLOR_BLACK);
-    sprintf(buf, "Time: %.3f s", reactionTime);
-    oled_putString(10, 10, (uint8_t *)buf, OLED_COLOR_WHITE, OLED_COLOR_BLACK);
-
-    return reactionTime;
-}
-
-
-
-int main(void){
-    init_ssp(); //magistrala kontaktu
-    init_i2c(); //tez magistrala kontaktu
+int main(void) {
+    init_ssp();
+    init_i2c();
     init_timer();
     init_adc();
+
     GPIO_SetDir(2, 1<<0, 1);
     GPIO_SetDir(2, 1<<1, 1);
-
     GPIO_SetDir(0, 1<<27, 1);
     GPIO_SetDir(0, 1<<28, 1);
     GPIO_SetDir(2, 1<<13, 1);
     GPIO_SetDir(0, 1<<26, 1);
 
-    GPIO_ClearValue(0, 1<<27); //LM4811-clk
-    GPIO_ClearValue(0, 1<<28); //LM4811-up/dn
-    GPIO_ClearValue(2, 1<<13); //LM4811-shutdn
+    GPIO_ClearValue(0, 1<<27);
+    GPIO_ClearValue(0, 1<<28);
+    GPIO_ClearValue(2, 1<<13);
+
     joystick_init();
     oled_init();
-    Timer0_Wait(1000); //nie wiem czy to zadziala ale buja
+    Timer0_Wait(1000);
 
+    typedef enum {
+        GAME_WAIT_START,
+        GAME_SHOW_DIR,
+        GAME_WAIT_MOVE,
+        GAME_SHOW_RESULT
+    } GameState;
 
-    srand(time(NULL));
-	while(1){
-		beginning();
+    GameState gameState = GAME_WAIT_START;
+    int cycles = 5;
+    double scores[cycles];
+    int iterator = 0;
+    uint8_t rolledDir;
+    double reactionTime;
+    double avg;
+    clock_t startTime, endTime;
+    while (1) {
+        switch (gameState) {
+            case GAME_WAIT_START:
+            	oled_clearScreen(OLED_COLOR_BLACK);
+            	oled_putString(0, 0, (uint8_t *)"Przesun joystick", OLED_COLOR_WHITE, OLED_COLOR_BLACK);
+            	oled_putString(0, 10, (uint8_t *)"w PRAWO by zaczac", OLED_COLOR_WHITE, OLED_COLOR_BLACK);
+            	oled_putString(0,20, (uint8_t *)"w Lewo aby zobaczyc wynik", OLED_COLOR_WHITE, OLED_COLOR_BLACK);
+            	if (joystick_read() == JOYSTICK_RIGHT) {
+            		oled_clearScreen(OLED_COLOR_BLACK);
+            		gameState = GAME_SHOW_DIR;
+                }
+                break;
 
+            case GAME_SHOW_DIR:
+                oled_clearScreen(OLED_COLOR_BLACK);
+                rolledDir = generateRandomDirection();
+                oled_putString(10, 10, (uint8_t *)dirToString(rolledDir), OLED_COLOR_WHITE, OLED_COLOR_BLACK);
+                startTime = clock();
+                Timer0_Wait(3000);
+                gameState = GAME_WAIT_MOVE;
+                break;
 
-		double scores[5];
-		for (int i = 0; i < 5; ++i) {
-			scores[i] = singleCycle();
-//			for (volatile int j = 0; j < 1000000; ++j) ;
-	        Timer0_Wait(3000); //nie wiem czy to zadziala ale buja
-		}
+            case GAME_WAIT_MOVE:
+                if (joystick_read() == rolledDir) {
+                    endTime = clock();
+                    reactionTime = (double)(endTime - startTime) / CLOCKS_PER_SEC;
+                    scores[iterator++] = reactionTime;
+                    oled_clearScreen(OLED_COLOR_BLACK);
+                    char buf[32];
+                    sprintf(buf, "Time: %.3f s", reactionTime);
+                    oled_putString(10, 10, (uint8_t *)buf, OLED_COLOR_WHITE, OLED_COLOR_BLACK);
+                    gameState = (iterator < cycles) ? GAME_SHOW_DIR : GAME_SHOW_RESULT;
+                }
+                break;
 
-		double avg = calculateAverageScore(scores);
-		 const char *songs[] = {"E2,E2,E4,E2,E2,E4,E2,G2,C2,D2,E8,F2,F2,F2,F2,F2,E2,E2,E2,E2,D2,D2,E2,D4,G4,E2,E2,E4,E2,E2,E4,E2,G2,C2,D2,E8,F2,F2,F2,F2,F2,E2,E2,E2,G2,G2,F2,D2,C8,",};
-		oled_clearScreen(OLED_COLOR_BLACK);
-		oled_putString(0, 0,  (uint8_t *)"Game over",  OLED_COLOR_WHITE, OLED_COLOR_BLACK);
-		oled_putString(0, 10, (uint8_t *)"Avg score:", OLED_COLOR_WHITE, OLED_COLOR_BLACK);
-
-		char avgBuf[32];
-		sprintf(avgBuf, "%.3f s", avg);
-		oled_putString(0, 20, (uint8_t *)avgBuf, OLED_COLOR_WHITE, OLED_COLOR_BLACK);
-		while(joystick_read()!= (uint8_t)JOYSTICK_UP ){
-		    for (int i = 0; i < sizeof(songs)/ sizeof(uint8_t*); i++) {
-		        playSong((uint8_t*)songs[i]);
-		        Timer0_Wait(3000);
-		    }
-			continue;
-		}
-	}
+            case GAME_SHOW_RESULT:
+                avg = calculateAverageScore(scores, cycles);
+                oled_clearScreen(OLED_COLOR_BLACK);
+                oled_putString(0, 0, (uint8_t *)"Game over", OLED_COLOR_WHITE, OLED_COLOR_BLACK);
+                oled_putString(0, 10, (uint8_t *)"Avg score:", OLED_COLOR_WHITE, OLED_COLOR_BLACK);
+                char avgBuf[32];
+                sprintf(avgBuf, "%.3f s", avg);
+                oled_putString(0, 20, (uint8_t *)avgBuf, OLED_COLOR_WHITE, OLED_COLOR_BLACK);
+                playSong((uint8_t*) song);
+                Timer0_Wait(1000);
+                iterator = 0;
+                gameState = GAME_WAIT_START;
+                break;
+        }
+    }
 }
