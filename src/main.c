@@ -3,14 +3,17 @@
 #include "lpc17xx_ssp.h"
 #include "lpc17xx_adc.h"
 #include "lpc17xx_timer.h"
+#include "lpc17xx_gpio.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <time.h>
 #include "joystick.h"
 #include "oled.h"
+#include "eeprom.h"
 
 #define NOTE_PIN_HIGH() GPIO_SetValue(0, 1<<26);
 #define NOTE_PIN_LOW() GPIO_ClearValue(0, 1<<26);
+#define EEPROM_OFFSET 0
 
 // inits
 
@@ -175,12 +178,25 @@ static void playSong(uint8_t *song) {
     }
 }
 
+//read/write best score to eeprom
+
+double readBestScore() {
+	double score = 1000.0;
+	eeprom_read((uint8_t*)&score, EEPROM_OFFSET, sizeof(score));
+	return score;
+}
+
+void saveBestScore(double score) {
+	eeprom_write((uint8_t*)&score, EEPROM_OFFSET, sizeof(score));
+}
+
 
 int main(void) {
     init_ssp();
     init_i2c();
     init_timer();
     init_adc();
+    eeprom_init();
 
     GPIO_SetDir(2, 1<<0, 1);
     GPIO_SetDir(2, 1<<1, 1);
@@ -196,6 +212,8 @@ int main(void) {
     joystick_init();
     oled_init();
     Timer0_Wait(1000);
+
+    double bestScore = readBestScore();
 
     typedef enum {
         GAME_WAIT_START,
@@ -216,13 +234,27 @@ int main(void) {
         switch (gameState) {
             case GAME_WAIT_START:
             	oled_clearScreen(OLED_COLOR_BLACK);
-            	oled_putString(0, 0, (uint8_t *)"Przesun joystick", OLED_COLOR_WHITE, OLED_COLOR_BLACK);
-            	oled_putString(0, 10, (uint8_t *)"w PRAWO by zaczac", OLED_COLOR_WHITE, OLED_COLOR_BLACK);
-            	oled_putString(0,20, (uint8_t *)"w Lewo aby zobaczyc wynik", OLED_COLOR_WHITE, OLED_COLOR_BLACK);
+            	oled_putString(0, 0, (uint8_t *)"Move joystick:", OLED_COLOR_WHITE, OLED_COLOR_BLACK);
+            	oled_putString(0, 10, (uint8_t *)"RIGHT - start game", OLED_COLOR_WHITE, OLED_COLOR_BLACK);
+            	oled_putString(0,20, (uint8_t *)"LEFT - show best score", OLED_COLOR_WHITE, OLED_COLOR_BLACK);
             	if (joystick_read() == JOYSTICK_RIGHT) {
             		oled_clearScreen(OLED_COLOR_BLACK);
             		gameState = GAME_SHOW_DIR;
                 }
+            	else if (joystick_read() == JOYSTICK_LEFT) {
+            		oled_clearScreen(OLED_COLOR_BLACK);
+                	oled_putString(0, 0, (uint8_t *)"BEST SCORE:", OLED_COLOR_WHITE, OLED_COLOR_BLACK);
+                	if(bestScore == 1000.0) {
+                    	oled_putString(0, 10, (uint8_t *)"No best score yet", OLED_COLOR_WHITE, OLED_COLOR_BLACK);
+                	}
+                	else {
+                		char b[32];
+                		sprintf(b, "%.3f s", bestScore);
+                    	oled_putString(0, 10, (uint8_t *)b, OLED_COLOR_WHITE, OLED_COLOR_BLACK);
+                	}
+                	Timer0_Wait(3000);
+                	gameState = GAME_WAIT_START;
+            	}
                 break;
 
             case GAME_SHOW_DIR:
@@ -255,6 +287,11 @@ int main(void) {
                 char avgBuf[32];
                 sprintf(avgBuf, "%.3f s", avg);
                 oled_putString(0, 20, (uint8_t *)avgBuf, OLED_COLOR_WHITE, OLED_COLOR_BLACK);
+                if(avg < bestScore) {
+                	bestScore = avg;
+                    oled_putString(0, 30, (uint8_t *)"NEW BEST SCORE!", OLED_COLOR_WHITE, OLED_COLOR_BLACK);
+                    saveBestScore(bestScore);
+                }
                 playSong((uint8_t*) song);
                 Timer0_Wait(1000);
                 iterator = 0;
