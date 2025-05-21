@@ -16,7 +16,6 @@
 #define EEPROM_OFFSET 0
 
 // inits
-
 void init_timer(void) {
     TIM_TIMERCFG_Type timerConfig;
     timerConfig.PrescaleOption = TIM_PRESCALE_USVAL;
@@ -83,7 +82,6 @@ static void init_ssp(void) {
 }
 
 // calculation functions
-
 const char* dirToString(uint8_t dir) {
     switch (dir) {
         case JOYSTICK_UP: return "UP";
@@ -106,37 +104,21 @@ double calculateAverageScore(double *arr, int size) {
 }
 
 // music
-//Peroid of each note T=1/f. Np: dzwiek A = 440Hz czyli 1/440 = 0.00272727273 czyli w mikrosekundach 2272us
 static uint32_t notes[] = {
-        2272, // A - 440 Hz
-        2024, // B - 494 Hz
-        3816, // C - 262 Hz
-        3401, // D - 294 Hz
-        3030, // E - 330 Hz
-        2865, // F - 349 Hz
-        2551, // G - 392 Hz
-        1136, // a - 880 Hz
-        1012, // b - 988 Hz
-        1912, // c - 523 Hz
-        1703, // d - 587 Hz
-        1517, // e - 659 Hz
-        1432, // f - 698 Hz
-        1275, // g - 784 Hz
+    2272, 2024, 3816, 3401, 3030, 2865, 2551,
+    1136, 1012, 1912, 1703, 1517, 1432, 1275
 };
-//static const char *song = "D4,";
-//pioseneczka D - 4s dlugosc polokresu
+
 static const char *song = "D4,B4,B4,A4,A4,G4,E4,D4.D2,E4,E4,A4,F4,D8.D4,d4,d4,c4,c4,B4,G4,E4.E2,F4,F4,A4,A4,G8,";
-
-
 
 static void playNote(uint32_t note, uint32_t durationMs) {
     uint32_t t = 0;
     if (note > 0) {
-        while (t < (durationMs * 1000)) { //stan on oof * duration
-            NOTE_PIN_HIGH(); //buzzer zaczyna grac
-            Timer0_us_Wait(note / 2); //polokres
-            NOTE_PIN_LOW(); //
-            Timer0_us_Wait(note / 2); //polokres
+        while (t < (durationMs * 1000)) {
+            NOTE_PIN_HIGH();
+            Timer0_us_Wait(note / 2);
+            NOTE_PIN_LOW();
+            Timer0_us_Wait(note / 2);
             t += note;
         }
     } else {
@@ -145,14 +127,14 @@ static void playNote(uint32_t note, uint32_t durationMs) {
 }
 
 static uint32_t getNote(uint8_t ch) {
-    if (ch >= 'A' && ch <= 'G') return notes[ch - 'A']; // C - A =>  67  - 65 = 2
-    if (ch >= 'a' && ch <= 'g') return notes[ch - 'a' + 7]; //c - a + 7=> 99-97 + 7 = 9
+    if (ch >= 'A' && ch <= 'G') return notes[ch - 'A'];
+    if (ch >= 'a' && ch <= 'g') return notes[ch - 'a' + 7];
     return 0;
 }
 
 static uint32_t getDuration(uint8_t ch) {
     if (ch < '0' || ch > '9') return 400;
-    return (ch - '0') * 200; //np: 4 to '4' - '0' = 52 - 48 = 4 * 200 (peeeelny okres)
+    return (ch - '0') * 200;
 }
 
 static uint32_t getPause(uint8_t ch) {
@@ -178,18 +160,17 @@ static void playSong(uint8_t *song) {
     }
 }
 
-//read/write best score to eeprom
+// EEPROM
 
 double readBestScore() {
-	double score = 1000.0;
-	eeprom_read((uint8_t*)&score, EEPROM_OFFSET, sizeof(score));
-	return score;
+    double score = 1000.0;
+    eeprom_read((uint8_t*)&score, EEPROM_OFFSET, sizeof(score));
+    return score;
 }
 
 void saveBestScore(double score) {
-	eeprom_write((uint8_t*)&score, EEPROM_OFFSET, sizeof(score));
+    eeprom_write((uint8_t*)&score, EEPROM_OFFSET, sizeof(score));
 }
-
 
 int main(void) {
     init_ssp();
@@ -198,16 +179,16 @@ int main(void) {
     init_adc();
     eeprom_init();
 
-    GPIO_SetDir(2, 1<<0, 1);
-    GPIO_SetDir(2, 1<<1, 1);
-    GPIO_SetDir(0, 1<<27, 1);
-    GPIO_SetDir(0, 1<<28, 1);
-    GPIO_SetDir(2, 1<<13, 1);
-    GPIO_SetDir(0, 1<<26, 1);
+    GPIO_SetDir(2, 1 << 0, 1);
+    GPIO_SetDir(2, 1 << 1, 1);
+    GPIO_SetDir(0, 1 << 27, 1);
+    GPIO_SetDir(0, 1 << 28, 1);
+    GPIO_SetDir(2, 1 << 13, 1);
+    GPIO_SetDir(0, 1 << 26, 1);
 
-    GPIO_ClearValue(0, 1<<27);
-    GPIO_ClearValue(0, 1<<28);
-    GPIO_ClearValue(2, 1<<13);
+    GPIO_ClearValue(0, 1 << 27);
+    GPIO_ClearValue(0, 1 << 28);
+    GPIO_ClearValue(2, 1 << 13);
 
     joystick_init();
     oled_init();
@@ -217,6 +198,7 @@ int main(void) {
 
     typedef enum {
         GAME_WAIT_START,
+        GAME_WAIT_START_MOVE,
         GAME_SHOW_DIR,
         GAME_WAIT_MOVE,
         GAME_SHOW_RESULT
@@ -230,31 +212,34 @@ int main(void) {
     double reactionTime;
     double avg;
     clock_t startTime, endTime;
+
     while (1) {
         switch (gameState) {
             case GAME_WAIT_START:
-            	oled_clearScreen(OLED_COLOR_BLACK);
-            	oled_putString(0, 0, (uint8_t *)"Move joystick:", OLED_COLOR_WHITE, OLED_COLOR_BLACK);
-            	oled_putString(0, 10, (uint8_t *)"RIGHT - start game", OLED_COLOR_WHITE, OLED_COLOR_BLACK);
-            	oled_putString(0,20, (uint8_t *)"LEFT - show best score", OLED_COLOR_WHITE, OLED_COLOR_BLACK);
-            	if (joystick_read() == JOYSTICK_RIGHT) {
-            		oled_clearScreen(OLED_COLOR_BLACK);
-            		gameState = GAME_SHOW_DIR;
+                oled_clearScreen(OLED_COLOR_BLACK);
+                oled_putString(0, 0, (uint8_t *)"Move joystick:", OLED_COLOR_WHITE, OLED_COLOR_BLACK);
+                oled_putString(0, 10, (uint8_t *)"RIGHT - start game", OLED_COLOR_WHITE, OLED_COLOR_BLACK);
+                oled_putString(0, 20, (uint8_t *)"LEFT - show best score", OLED_COLOR_WHITE, OLED_COLOR_BLACK);
+                gameState = GAME_WAIT_START_MOVE;
+                break;
+
+            case GAME_WAIT_START_MOVE:
+                if (joystick_read() == JOYSTICK_RIGHT) {
+                    oled_clearScreen(OLED_COLOR_BLACK);
+                    gameState = GAME_SHOW_DIR;
+                } else if (joystick_read() == JOYSTICK_LEFT) {
+                    oled_clearScreen(OLED_COLOR_BLACK);
+                    oled_putString(0, 0, (uint8_t *)"BEST SCORE:", OLED_COLOR_WHITE, OLED_COLOR_BLACK);
+                    if (bestScore == 1000.0) {
+                        oled_putString(0, 10, (uint8_t *)"No best score yet", OLED_COLOR_WHITE, OLED_COLOR_BLACK);
+                    } else {
+                        char b[32];
+                        sprintf(b, "%.3f s", bestScore);
+                        oled_putString(0, 10, (uint8_t *)b, OLED_COLOR_WHITE, OLED_COLOR_BLACK);
+                    }
+                    Timer0_Wait(5000);
+                    gameState = GAME_WAIT_START;
                 }
-            	else if (joystick_read() == JOYSTICK_LEFT) {
-            		oled_clearScreen(OLED_COLOR_BLACK);
-                	oled_putString(0, 0, (uint8_t *)"BEST SCORE:", OLED_COLOR_WHITE, OLED_COLOR_BLACK);
-                	if(bestScore == 1000.0) {
-                    	oled_putString(0, 10, (uint8_t *)"No best score yet", OLED_COLOR_WHITE, OLED_COLOR_BLACK);
-                	}
-                	else {
-                		char b[32];
-                		sprintf(b, "%.3f s", bestScore);
-                    	oled_putString(0, 10, (uint8_t *)b, OLED_COLOR_WHITE, OLED_COLOR_BLACK);
-                	}
-                	Timer0_Wait(3000);
-                	gameState = GAME_WAIT_START;
-            	}
                 break;
 
             case GAME_SHOW_DIR:
@@ -262,7 +247,6 @@ int main(void) {
                 rolledDir = generateRandomDirection();
                 oled_putString(10, 10, (uint8_t *)dirToString(rolledDir), OLED_COLOR_WHITE, OLED_COLOR_BLACK);
                 startTime = clock();
-                Timer0_Wait(3000);
                 gameState = GAME_WAIT_MOVE;
                 break;
 
@@ -275,6 +259,7 @@ int main(void) {
                     char buf[32];
                     sprintf(buf, "Time: %.3f s", reactionTime);
                     oled_putString(10, 10, (uint8_t *)buf, OLED_COLOR_WHITE, OLED_COLOR_BLACK);
+                    Timer0_Wait(2000);
                     gameState = (iterator < cycles) ? GAME_SHOW_DIR : GAME_SHOW_RESULT;
                 }
                 break;
@@ -287,13 +272,12 @@ int main(void) {
                 char avgBuf[32];
                 sprintf(avgBuf, "%.3f s", avg);
                 oled_putString(0, 20, (uint8_t *)avgBuf, OLED_COLOR_WHITE, OLED_COLOR_BLACK);
-                if(avg < bestScore) {
-                	bestScore = avg;
+                if (avg < bestScore) {
+                    bestScore = avg;
                     oled_putString(0, 30, (uint8_t *)"NEW BEST SCORE!", OLED_COLOR_WHITE, OLED_COLOR_BLACK);
                     saveBestScore(bestScore);
                 }
-                playSong((uint8_t*) song);
-                Timer0_Wait(1000);
+                Timer0_Wait(4000);
                 iterator = 0;
                 gameState = GAME_WAIT_START;
                 break;
