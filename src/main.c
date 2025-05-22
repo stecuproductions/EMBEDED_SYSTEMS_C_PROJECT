@@ -161,16 +161,40 @@ static void playSong(uint8_t *song) {
 }
 
 // EEPROM
+uint8_t calculateChecksum(const uint8_t* data, size_t length){
+	uint8_t sum=0;
+	for (size_t i=0; i<length; i++){
+		sum = sum ^ data[i]; //operacja XOR 1^1=0 0^0=0 1^0=1 0^1=1
+	}
+	return sum;
+}
 
-double readBestScore() {
-    double score = 1000.0;
+double readBestScore() { //checksum validation
+    uint8_t buffer[sizeof(double) + 1];
+    eeprom_read(buffer, EEPROM_OFFSET, sizeof(buffer));
+
+    uint8_t expected = calculateChecksum(buffer, sizeof(double));
+    uint8_t actual = buffer[sizeof(double)];
+
+    if (expected != actual) {
+        return 1000.0;
+    }
+
+    double score;
+    memcpy(&score, buffer, sizeof(score));
+    return score;
     eeprom_read((uint8_t*)&score, EEPROM_OFFSET, sizeof(score));
     return score;
 }
 
 void saveBestScore(double score) {
-    eeprom_write((uint8_t*)&score, EEPROM_OFFSET, sizeof(score));
+	uint8_t buffer[sizeof(score) + 1];
+	memcpy(buffer, &score, sizeof(score)); //zamienia double na bajty do buffera jezeli score to ... ,to buffer wynosi: buffer = { 0x77, 0xBE, 0x9F, 0x1A, 0x2F, 0xDD, 0xED, 0x3F, ?? }
+	buffer[sizeof(score)] = calculateChecksum(buffer, sizeof(score));
+	eeprom_write(buffer, EEPROM_OFFSET, sizeof(buffer));
 }
+
+
 
 int main(void) {
     init_ssp();
@@ -277,6 +301,7 @@ int main(void) {
                     oled_putString(0, 30, (uint8_t *)"NEW BEST SCORE!", OLED_COLOR_WHITE, OLED_COLOR_BLACK);
                     saveBestScore(bestScore);
                 }
+                playSong(song);
                 Timer0_Wait(4000);
                 iterator = 0;
                 gameState = GAME_WAIT_START;
